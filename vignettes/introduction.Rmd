@@ -44,7 +44,8 @@ Your network changes substantially based on this one number.
 ```{r example, message=FALSE}
 library(RMTnet)
 
-# Simulate expression data: 500 genes, 80 samples, 3 embedded modules
+# This vignette uses simulated data so it runs anywhere with no external
+# dependencies. For results on real data (ALL leukemia), see the README.
 mat <- simulate_expression(n_genes = 500, n_samples = 80, n_modules = 3)
 
 # One function call — no parameters to tune
