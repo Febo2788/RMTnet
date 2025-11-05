@@ -1,0 +1,155 @@
+---
+title: "Introduction to RMTnet"
+output:
+  BiocStyle::html_document:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Introduction to RMTnet}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width = 8,
+  fig.height = 6
+)
+```
+
+# Overview
+
+**RMTnet** builds gene co-expression networks using **Random Matrix Theory (RMT)**
+to distinguish real biological signal from finite-sample statistical noise.
+
+## The problem with WGCNA's soft threshold
+
+When you run WGCNA, you must pick a soft-thresholding power β:
+
+```r
+# WGCNA — you must eyeball this plot and pick β
+powers <- c(1:20)
+sft    <- pickSoftThreshold(expr, powerVector = powers)
+plot(sft$fitIndices[,1], sft$fitIndices[,2])
+# ... pick where R² > 0.8 ... subjective, varies between labs
+```
+
+This choice is arbitrary. A different analyst, a different dataset, a different β.
+Your network changes substantially based on this one number.
+
+## RMTnet: zero parameters
+
+```{r example, message=FALSE}
+library(RMTnet)
+
+# Simulate expression data: 500 genes, 80 samples, 3 embedded modules
+mat <- simulate_expression(n_genes = 500, n_samples = 80, n_modules = 3)
+
+# One function call — no parameters to tune
+net <- rmt_network(mat)
+print(net)
+```
+
+The threshold is derived mathematically from your N (genes) and T (samples)
+using the **Marchenko-Pastur law** — the same answer every time.
+
+# What is the Marchenko-Pastur law?
+
+Imagine your 500 genes were completely independent — no real biology at all,
+just noise. If you still computed their correlation matrix and ran PCA, you
+would *still* see non-zero eigenvalues, because finite sample size creates
+spurious correlations by chance.
+
+The Marchenko-Pastur law predicts exactly what those spurious eigenvalues
+would look like:
+
+$$\rho_{MP}(\lambda) = \frac{Q}{2\pi\sigma^2}
+  \frac{\sqrt{(\lambda_+ - \lambda)(\lambda - \lambda_-)}}{\lambda}$$
+
+where $Q = T/N$ and $\lambda_{\pm} = \sigma^2(1 \pm 1/\sqrt{Q})^2$.
+
+Any eigenvalue **above** $\lambda_+$ is statistically significant — more
+correlated than random genes could be by chance. Everything below is noise.
+
+```{r spectrum}
+# Visualise the eigenvalue spectrum with MP bounds
+plot(net, which = "spectrum")
+```
+
+# Step-by-step usage
+
+## Step 1: Check your MP threshold
+
+```{r mp}
+mp <- mp_threshold(mat)
+cat("Genes (N):       ", mp$N, "\n")
+cat("Samples (T):     ", mp$T, "\n")
+cat("Q = T/N:         ", round(mp$Q, 2), "\n")
+cat("MP ceiling λ+:   ", round(mp$lambda_plus, 4), "\n")
+cat("Signal PCs:      ", mp$n_signal, "/", mp$N, "\n")
+```
+
+## Step 2: Spectral filtering
+
+Noise eigenvalues are replaced by their mean, then the cleaned matrix
+is reconstructed. This is analogous to `limma::removeBatchEffect()` but
+for statistically-proven noise rather than known confounders.
+
+```{r filter}
+filt <- spectral_filter(mp)
+
+# Condition number: lower is better (more stable matrix inversion)
+cat("Raw corr condition number:    ",
+    round(kappa(filt$raw_corr), 0), "\n")
+cat("Cleaned corr condition number:",
+    round(kappa(filt$cleaned_corr), 0), "\n")
+```
+
+## Step 3: Full network and modules
+
+```{r network}
+net <- rmt_network(mat, min_module_size = 20)
+net$module_table
+```
+
+## Step 4: Visualise
+
+```{r plots, fig.height=8}
+plot(net)
+```
+
+# Using with real data
+
+RMTnet accepts any normalised expression matrix — the same input you'd give WGCNA:
+
+```r
+# From DESeq2
+vsd   <- vst(dds)
+mat   <- assay(vsd)
+net   <- rmt_network(mat)
+
+# From edgeR
+logcpm <- cpm(dge, log = TRUE)
+net    <- rmt_network(logcpm)
+
+# From a SummarizedExperiment directly
+net <- rmt_network(se, assay_name = "logcounts")
+```
+
+# Interpreting the output
+
+| Field | What it means |
+|---|---|
+| `n_signal` | How many PCs are statistically real. Like a rigorous scree plot cutoff. |
+| `lambda_plus` | The noise ceiling. Eigenvalues above this are signal. |
+| `entropy` | Von Neumann entropy of your expression data. Low = dominated by one factor (batch?). High = diverse. |
+| `modules` | Gene module membership, like WGCNA's module colours. |
+| `cleaned_corr` | The noise-filtered correlation matrix. Use this for downstream analysis. |
+
+# Session info
+
+```{r sessioninfo}
+sessionInfo()
+```

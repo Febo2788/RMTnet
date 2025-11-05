@@ -1,0 +1,37 @@
+Package: RMTnet
+Title: Random Matrix Theory for Gene Co-Expression Networks
+Version: 0.1.0
+Authors@R:
+    person("Felix", "Borrego", email = "felix.borrego02@gmail.com", role = c("aut", "cre"))
+Description: Constructs gene co-expression networks using Random Matrix Theory
+    (RMT) to distinguish statistically significant correlations from finite-sample
+    noise. Provides a parameter-free alternative to WGCNA's soft thresholding by
+    applying the Marchenko-Pastur law to determine a mathematically principled
+    noise threshold. Includes spectral filtering of correlation matrices, gene
+    module detection, and diagnostic visualizations.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Depends:
+    R (>= 4.1.0)
+Imports:
+    stats,
+    graphics,
+    methods,
+    dynamicTreeCut,
+    ggplot2,
+    Matrix
+Suggests:
+    BiocStyle,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    SummarizedExperiment,
+    DESeq2
+VignetteBuilder: knitr
+BugReports: https://github.com/Febo2788/RMTnet/issues
+URL: https://github.com/Febo2788/RMTnet
+biocViews: GeneExpression, NetworkInference, DimensionReduction,
+    Transcriptomics, RNASeq, SingleCell, Software
+Config/testthat/edition: 3

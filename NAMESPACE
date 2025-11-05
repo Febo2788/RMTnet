@@ -1,0 +1,5 @@
+exportPattern("^[^\\.]")
+importFrom(stats, optimise, cor, sd, hclust, as.dist, var)
+importFrom(grDevices, adjustcolor, colorRampPalette, hcl.colors)
+importFrom(graphics, plot, image, hist, lines, abline, barplot, legend,
+           par, box, plot.new, title)
