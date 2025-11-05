@@ -2,25 +2,18 @@
 
 **Parameter-free gene co-expression networks using Random Matrix Theory.**
 
-RMTnet builds gene co-expression networks without any parameters to tune. Where WGCNA requires you to pick a soft-thresholding power β by eyeballing a plot — a choice that varies between analysts and datasets — RMTnet derives its threshold mathematically from your data using the **Marchenko-Pastur law**. Same data in, same answer every time.
-
----
-
-## Origin
-
-While working on a class project I came across Random Matrix Theory and how it separates genuine statistical signal from finite-sample noise. I realised the math maps directly onto gene co-expression analysis — both problems reduce to the same thing: a large correlation matrix with too few samples. After surveying existing approaches (Luo et al. 2007, RMTGeneNet 2013, RMThreshold on CRAN), I found none offered a Bioconductor-integrated, WGCNA-shaped workflow built on spectral filtering rather than hard thresholding. So I built one.
+RMTnet builds gene co-expression networks with no parameters to tune. Where WGCNA requires you to pick a soft-thresholding power β by eyeballing a plot — a choice that varies between analysts and datasets — RMTnet derives its threshold mathematically from your data using the **Marchenko-Pastur law**. Same data in, same answer every time.
 
 ---
 
 ## Installation
 
 ```r
-# Install from GitHub (requires remotes)
 install.packages("remotes")
 remotes::install_github("Febo2788/RMTnet")
 ```
 
-> Bioconductor submission is pending. Once accepted, installation will also be available via `BiocManager::install("RMTnet")`.
+> Bioconductor submission pending. Once accepted, installation will also be available via `BiocManager::install("RMTnet")`.
 
 ---
 
@@ -35,7 +28,7 @@ print(net)
 plot(net)
 ```
 
-One function call. No β to pick, no R² plot to eyeball, no parameters.
+One function call. No β to pick, no R² plot to eyeball.
 
 ---
 
@@ -44,56 +37,45 @@ One function call. No β to pick, no R² plot to eyeball, no parameters.
 ### The problem with WGCNA
 
 ```r
-# WGCNA — you must pick this number by eye
-powers <- c(1:20)
-sft    <- pickSoftThreshold(expr, powerVector = powers)
+# WGCNA requires you to pick this number by eye
+sft <- pickSoftThreshold(expr, powerVector = 1:20)
 plot(sft$fitIndices[,1], sft$fitIndices[,2])
-# ... squint at plot, pick where R² > 0.8 ... subjective
+# ... squint at plot, pick where R² > 0.8 ...
 blockwiseModules(expr, power = 12)  # why 12? ask the analyst
 ```
 
-Different analyst, different β, different network.
+Different analyst, different β, different network. The choice is arbitrary.
 
 ### RMTnet — zero parameters
 
-Imagine your genes were completely random — no real biology at all. If you computed their correlation matrix and ran PCA, you would *still* see non-zero eigenvalues, because finite sample size creates spurious correlations by chance. The **Marchenko-Pastur law** predicts exactly how large those spurious eigenvalues would be:
+Imagine your genes had no real biology — just random numbers. If you computed their correlation matrix and ran PCA, you would *still* see non-zero components, because finite sample size creates spurious correlations by chance. The **Marchenko-Pastur law** predicts exactly how large those spurious values would be:
 
 $$\lambda_+ = \sigma^2 \left(1 + \frac{1}{\sqrt{Q}}\right)^2, \quad Q = \frac{T}{N}$$
 
-Any eigenvalue above λ₊ is statistically real — more correlated than random genes could be by chance. Everything below is noise. **Spectral filtering** then replaces those noise eigenvalues with their mean and reconstructs a cleaned correlation matrix, preserving all the signal while attenuating noise globally. This is analogous to `limma::removeBatchEffect()` but for *statistical* noise rather than known confounders — and it requires no list of covariates.
+Any eigenvalue above λ₊ is statistically real — more structured than random genes could produce by chance. Everything below is noise. **Spectral filtering** then replaces those noise eigenvalues with their mean and reconstructs a cleaned correlation matrix, preserving all the signal while attenuating noise globally.
 
 ### The RNA-seq analogy
 
 | RMT concept | Bioinformatics equivalent |
 |---|---|
 | Eigenvalue spectrum | PCA scree plot |
-| λ₊ (MP noise ceiling) | Rigorous scree plot cutoff — no eyeballing |
+| λ₊ (MP noise ceiling) | Rigorous scree cutoff — no eyeballing |
 | Noise eigenvalues | Garbage PCs below the elbow |
-| Spectral filtering | `limma::removeBatchEffect()` for statistical noise |
+| Spectral filtering | `limma::removeBatchEffect()` but for statistical noise, not known confounders |
 | Von Neumann entropy | Diversity of signal — low means one factor dominates (batch?), high means rich biology |
 | Signal PCs | How many PCs are statistically real |
 
 ---
 
-## Diagnostic plots
+## Origin
 
-### Eigenvalue spectrum (ALL leukemia data, 1000 genes × 128 samples)
-
-The red dashed line is λ₊ — the MP noise ceiling. Eigenvalues to the right are statistically real signal. Everything to the left is indistinguishable from pure noise.
-
-![Eigenvalue spectrum](man/figures/spectrum.png)
-
-### Full diagnostic panel
-
-Four panels: eigenvalue spectrum with MP bounds, MP PDF fit over the bulk eigenvalue histogram, cleaned−raw correlation heatmap, and module size barplot.
-
-![Diagnostic plots](man/figures/diagnostic.png)
+While working on a class presentation analysing large financial correlation matrices, I came across Random Matrix Theory and how it separates genuine signal from finite-sample noise. I realised the math was identical to the problem in gene co-expression analysis — large correlation matrix, far more genes than samples, spurious correlations everywhere. After surveying existing approaches (Luo et al. 2007, RMTGeneNet 2013, RMThreshold on CRAN), none offered a Bioconductor-integrated, WGCNA-shaped workflow built on spectral filtering rather than hard thresholding. So I built one.
 
 ---
 
-## Real data: ALL leukemia dataset
+## Real data: ALL leukemia
 
-128 patient samples, 1000 most-variable probes, known B-cell vs T-cell subtypes (Chiaretti et al. 2004).
+128 patient samples, 1000 most-variable Affymetrix probes, known B-cell vs T-cell subtypes (Chiaretti et al. 2004).
 
 ```r
 library(ALL)
@@ -115,7 +97,7 @@ net <- rmt_network(mat, min_module_size = 15)
   Modules detected: 26
 ```
 
-88% of eigenvalues are pure finite-sample noise. The Von Neumann entropy at 53% of maximum indicates moderate signal diversity — the data isn't dominated by a single factor.
+88% of eigenvalues are pure finite-sample noise. The remaining 12% contain the real biology.
 
 ### RMTnet vs WGCNA on the same data
 
@@ -125,17 +107,54 @@ net <- rmt_network(mat, min_module_size = 15)
 | Unassigned genes | **6** | 969 |
 | Genes assigned | **99.4%** | 3.1% |
 | Mean intra-module correlation | 0.289 | 0.678 |
-| Best module eigengene \|r\| with B/T | **0.928** | 0.918 |
-| Soft power β | N/A | 14 (auto) |
+| Best module eigengene \|r\| with B/T label | **0.928** | 0.918 |
+| Soft power β used | N/A | 14 (auto) |
 | Runtime | 2.3s | 2.8s |
 
-WGCNA assigned 969 of 1000 genes to the grey (unassigned) module. Its R² scale-free topology curve was non-monotonic — powers 1–4 and then 14–18 both passed the 0.85 threshold, which is a sign the dataset doesn't fit the scale-free assumption. At the auto-selected power of 14, the adjacency was so sparse that only one module survived. Both methods recovered the B/T-cell signal equally well, but RMTnet did it across a rich 26-module structure while WGCNA found the single largest signal and stopped.
+WGCNA left 969 of 1000 genes unassigned. Its R² scale-free topology curve was non-monotonic — a sign the dataset doesn't satisfy the scale-free assumption. At the auto-selected power of 14, the adjacency became so sparse that only one module survived. Both methods recovered the B/T-cell signal equally well in their top module, but RMTnet found it across a 26-module structure while WGCNA found the single largest signal in the data and stopped.
+
+### Module sizes
+
+The bar charts below show what each method actually produced. Each blue bar in the RMTnet panel is a distinct group of co-expressed genes. The grey bar in the WGCNA panel represents genes the method couldn't assign — nearly the entire dataset.
+
+![Module sizes](man/figures/module_sizes.png)
+
+### Eigenvalue spectrum
+
+Every dot is one principal component of the gene correlation matrix. The red dashed line is λ₊, the Marchenko-Pastur noise ceiling — the largest eigenvalue that pure random noise could plausibly produce given 1000 genes and 128 samples. Dots to the right of that line represent statistically real co-expression signal. Everything to the left is indistinguishable from noise and gets filtered out.
+
+![Eigenvalue spectrum](man/figures/spectrum.png)
+
+### Pathway enrichment
+
+To test whether the modules are biologically meaningful — not just statistically real — each module's genes were tested against MSigDB Hallmark and immunologic gene sets using a hypergeometric test (BH-corrected FDR < 0.05).
+
+**15 of 26 RMTnet modules** had significant pathway hits. WGCNA's single module hit one pathway (generic immune activation).
+
+The heatmap below shows which module maps to which pathway. Each column is a module, each row is a biological process, and colour intensity is −log10(FDR) — darker means more significant. Read it as: each column with colour in it is a distinct biological process the package found on its own, with no labels given.
+
+![Enrichment heatmap](man/figures/enrichment_heatmap.png)
+
+**Selected hits (FDR < 0.05):**
+
+| Module | Genes | Top Hallmark pathway | FDR | Interpretation |
+|---|---|---|---|---|
+| 4 | 57 | MYC Targets V1 | 2.9×10⁻⁶ | MYC is one of the most commonly activated oncogenes in ALL |
+| 5 | 51 | MYC Targets V1 | 0.029 | Second MYC module — distinct gene subset |
+| 6 | 51 | TNFa Signalling via NF-κB | 2.3×10⁻⁷ | NF-κB is a canonical leukemia survival pathway |
+| 9 | 42 | TNFa Signalling via NF-κB | 1.3×10⁻¹⁵ | Strongest hit in the dataset |
+| 11 | 40 | E2F Targets | 1.8×10⁻⁸ | E2F drives cell cycle entry — classic in cancer |
+| 13 | 33 | Angiogenesis | 0.029 | Vascular remodelling signal |
+| 16 | 31 | Heme Metabolism | 1.1×10⁻⁴ | Expected in a blood cancer dataset |
+| 25 | 15 | mTORC1 Signalling | 0.004 | mTOR is an active therapeutic target in ALL |
+
+The two NF-κB modules (6 and 9) are separate — different gene subsets, both hitting the same pathway at different effect sizes. This kind of sub-pathway resolution is lost when you reduce everything to one module.
 
 ---
 
 ## Simulation benchmarks
 
-10 replications × 5 scenarios (varying signal strength, sample size, number of modules). Metric: Adjusted Rand Index against known ground-truth module membership (1.0 = perfect, 0 = random).
+10 replications × 5 scenarios varying signal strength, sample size, and number of modules. Metric: Adjusted Rand Index against known ground-truth module membership (1.0 = perfect, 0 = random).
 
 | Scenario | RMTnet | RMThreshold | No filtering |
 |---|---|---|---|
@@ -146,7 +165,7 @@ WGCNA assigned 969 of 1000 genes to the grey (unassigned) module. Its R² scale-
 | Many modules (6) | 0.274 | 0.957 | 0.253 |
 | **Overall mean** | **0.302** | **0.904** | **0.206** |
 
-**Why RMThreshold wins on simulated data and why that doesn't mean much:** The simulation generates perfectly clean block-diagonal structure — within-module correlations are high, between-module correlations near zero. That is exactly what hard thresholding was designed for: draw a line, all within-module edges survive, all between-module edges die. Real gene expression data has continuous correlation gradients, batch-driven off-diagonal structure, genes with partial module membership, and housekeeping co-expression across all modules. On that kind of data, picking a single hard threshold either cuts real edges or keeps noise edges. Spectral filtering handles this more gracefully because it operates on the global eigenvalue structure rather than entry-by-entry. RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — real data with known ground truth would be the proper test.
+RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — the simulated data has perfectly clean block-diagonal structure, which is exactly what hard thresholding is designed for. Real data has continuous correlation gradients, batch-driven off-diagonal noise, and genes with partial module membership. On simulated data, a hard threshold at r ≈ 0.35 trivially separates signal from noise. On real data (as shown above), it either cuts real edges or keeps noise edges. A proper benchmark against curated pathway databases on real data would be the right next test.
 
 ---
 
@@ -154,16 +173,16 @@ WGCNA assigned 969 of 1000 genes to the grey (unassigned) module. Its R² scale-
 
 | Tool | Year | Method | Format | Status |
 |---|---|---|---|---|
-| Luo et al. | 2007 | NNSD / GOE→Poisson transition, hard threshold | Concept only, no software | — |
-| RMTGeneNet | 2013 | Same as Luo, scaled up | C++ command-line | Unmaintained |
-| RMThreshold | ~2019 | Same as Luo | R, CRAN only | Maintained |
+| Luo et al. | 2007 | NNSD / GOE→Poisson transition, hard threshold | Concept paper, no software | — |
+| RMTGeneNet | 2013 | Same as Luo, scaled up | C++ command-line tool | Unmaintained |
+| RMThreshold | ~2019 | Same as Luo | R, CRAN | Maintained |
 | **RMTnet** | 2025 | **Marchenko-Pastur spectral filtering** | **R, Bioconductor-ready** | Active |
 
-Luo, RMTGeneNet, and RMThreshold all use the same approach: find a hard correlation threshold by watching eigenvalue spacing statistics (NNSD). They output a binary adjacency matrix — edge or no edge. RMTnet uses a fundamentally different operation: replace noise eigenvalues with their mean and reconstruct a continuous cleaned correlation matrix. The output is a weighted network with full gene coverage, suitable for direct use in downstream analysis.
+Luo, RMTGeneNet, and RMThreshold all follow the same logic: find a hard correlation threshold by watching eigenvalue spacing statistics (NNSD). They output a binary adjacency matrix — edge or no edge. RMTnet uses a different operation entirely: replace noise eigenvalues with their mean and reconstruct a continuous cleaned correlation matrix. The output is a weighted network with full gene coverage, suitable for downstream analysis.
 
-### A note on the tooling landscape
+### A note on the state of tooling
 
-Getting RMThreshold to run in an automated benchmark took three separate debug scripts and revealed that the package's core function (`rm.get.threshold`) is **interactive-only by design** — it renders three plots and waits for the user to click to select the threshold. There is no documented API for extracting the threshold programmatically. After finding the undocumented `interactive = FALSE` argument, the threshold still had to be extracted manually from raw p-value vectors. This is not a minor inconvenience — it means RMThreshold cannot be used in any automated pipeline, CI system, or reproducible analysis script without reverse-engineering its internals. For a method published in 2007 with a 2019 R implementation, this is a meaningful gap that RMTnet is designed to fill.
+Getting RMThreshold to run inside an automated benchmark required three separate debug sessions. The package's core function (`rm.get.threshold`) is **interactive-only by design** — it renders plots and waits for mouse clicks to select the threshold. There is no documented API for extracting the threshold programmatically. After finding the undocumented `interactive = FALSE` argument, the threshold still had to be manually extracted from raw p-value vectors by reverse-engineering the internals. This means RMThreshold cannot be used in any automated pipeline, CI system, or reproducible analysis script without significant undocumented workarounds. For a method first published in 2007, this is a gap worth noting. RMTnet is designed to be fully scriptable from the start.
 
 ---
 
@@ -173,9 +192,9 @@ Getting RMThreshold to run in an automated benchmark took three separate debug s
 |---|---|
 | `rmt_network()` | Full pipeline: MP threshold → spectral filter → modules. Main entry point. |
 | `mp_threshold()` | Computes the Marchenko-Pastur noise ceiling λ₊ and classifies each PC as signal or noise |
-| `spectral_filter()` | Replaces noise eigenvalues with their mean, reconstructs the cleaned correlation matrix |
+| `spectral_filter()` | Replaces noise eigenvalues with their mean and reconstructs the cleaned correlation matrix |
 | `simulate_expression()` | Generates synthetic expression data with embedded modules — no external data needed for testing |
-| `plot.RMTnetwork()` | Four-panel diagnostic: spectrum, MP fit, heatmap, module sizes |
+| `plot.RMTnetwork()` | Diagnostic plots: eigenvalue spectrum, MP PDF fit, cleaned vs raw heatmap, module sizes |
 
 The package is self-testable: `simulate_expression()` is built in so you can verify behaviour without any external dataset.
 
@@ -183,10 +202,10 @@ The package is self-testable: `simulate_expression()` is built in so you can ver
 
 ## Limitations
 
-- **No published real-data benchmark yet.** The simulation results favour hard thresholding due to artificial block structure. A proper benchmark against curated pathway databases (KEGG, MSigDB) on TCGA data would be the right next step.
-- **Low Q regime.** When Q = T/N is very small (< 0.1 — many genes, few samples), the MP approximation becomes less accurate. The ALL dataset at Q = 0.13 is at the edge of this regime.
-- **Not yet on Bioconductor.** The package is Bioconductor-ready (BiocStyle vignette, standard structure) but has not gone through formal review.
-- **Module detection inherits `cutreeDynamic` heuristics.** The spectral filtering step is parameter-free; the clustering step uses `dynamicTreeCut` which has its own `minModuleSize` parameter (default 30).
+- **Simulation benchmarks favour hard thresholding due to artificial block structure.** Pathway enrichment against MSigDB on the ALL dataset is shown above, but a systematic comparison across multiple real datasets remains future work.
+- **Low Q regime.** When Q = T/N is small (< 0.1), the MP approximation becomes less accurate. The ALL dataset at Q = 0.13 is at the edge of this.
+- **Not yet on Bioconductor.** The package is Bioconductor-ready but has not undergone formal review.
+- **Module detection uses `cutreeDynamic`.** The spectral filtering step is parameter-free; the downstream clustering uses `dynamicTreeCut` which has its own `minModuleSize` parameter (default 30).
 
 ---
 
