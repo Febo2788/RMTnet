@@ -165,7 +165,7 @@ The two NF-κB modules (6 and 9) are separate — different gene subsets, both h
 | Many modules (6) | 0.274 | 0.957 | 0.253 |
 | **Overall mean** | **0.302** | **0.904** | **0.206** |
 
-RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — the simulated data has perfectly clean block-diagonal structure, which is exactly what hard thresholding is designed for. Real data has continuous correlation gradients, batch-driven off-diagonal noise, and genes with partial module membership. On simulated data, a hard threshold at r ≈ 0.35 trivially separates signal from noise. On real data (as shown above), it either cuts real edges or keeps noise edges. A proper benchmark against curated pathway databases on real data would be the right next test.
+RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — the simulated data has perfectly clean block-diagonal structure, which is exactly what hard thresholding is designed for. Real data has continuous correlation gradients, batch-driven off-diagonal noise, and genes with partial module membership. On simulated data, a hard threshold at r ≈ 0.35 trivially separates signal from noise. On real data (as shown in the enrichment results above), RMTnet recovered 15 biologically coherent modules while WGCNA — which uses the same threshold-based logic — collapsed to a single module and left 97% of genes unassigned.
 
 ---
 
