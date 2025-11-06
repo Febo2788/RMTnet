@@ -91,25 +91,25 @@ net <- rmt_network(mat, min_module_size = 15)
   Genes:            1000
   Samples:          128
   Matrix ratio Q:   0.13
-  MP threshold λ+:  0.7296
-  Signal PCs:       119 / 1000  (12% real)
+  MP threshold λ+:  2.8626
+  Signal PCs:       52 / 127 non-zero  (41% real)
   Von Neumann S:    3.656 / 6.908 nats  (53% of max)
   Modules detected: 26
 ```
 
-88% of eigenvalues are pure finite-sample noise. The remaining 12% contain the real biology.
+Of the 127 non-zero principal components (the correlation matrix is rank-deficient with N >> T), 52 are statistically real signal and 75 are finite-sample noise that gets filtered out.
 
 ### RMTnet vs WGCNA on the same data
 
 | Metric | RMTnet | WGCNA |
 |---|---|---|
 | Modules detected | **26** | 1 |
-| Unassigned genes | **6** | 969 |
-| Genes assigned | **99.4%** | 3.1% |
-| Mean intra-module correlation | 0.289 | 0.678 |
-| Best module eigengene \|r\| with B/T label | **0.928** | 0.918 |
+| Unassigned genes | **3** | 969 |
+| Genes assigned | **99.7%** | 3.1% |
+| Mean intra-module correlation | 0.311 | 0.678 |
+| Best module eigengene \|r\| with B/T label | **0.950** | 0.918 |
 | Soft power β used | N/A | 14 (auto) |
-| Runtime | 2.3s | 2.8s |
+| Runtime | 2.6s | 2.7s |
 
 WGCNA left 969 of 1000 genes unassigned. Its R² scale-free topology curve was non-monotonic — a sign the dataset doesn't satisfy the scale-free assumption. At the auto-selected power of 14, the adjacency became so sparse that only one module survived. Both methods recovered the B/T-cell signal equally well in their top module, but RMTnet found it across a 26-module structure while WGCNA found the single largest signal in the data and stopped.
 
@@ -129,7 +129,7 @@ Every dot is one principal component of the gene correlation matrix. The red das
 
 To test whether the modules are biologically meaningful — not just statistically real — each module's genes were tested against MSigDB Hallmark and immunologic gene sets using a hypergeometric test (BH-corrected FDR < 0.05).
 
-**15 of 26 RMTnet modules** had significant pathway hits. WGCNA's single module hit one pathway (generic immune activation).
+**13 of 26 RMTnet modules** had significant pathway hits. WGCNA's single module hit one pathway (generic immune activation).
 
 The heatmap below shows which module maps to which pathway. Each column is a module, each row is a biological process, and colour intensity is −log10(FDR) — darker means more significant. Read it as: each column with colour in it is a distinct biological process the package found on its own, with no labels given.
 
@@ -139,16 +139,16 @@ The heatmap below shows which module maps to which pathway. Each column is a mod
 
 | Module | Genes | Top Hallmark pathway | FDR | Interpretation |
 |---|---|---|---|---|
-| 4 | 57 | MYC Targets V1 | 2.9×10⁻⁶ | MYC is one of the most commonly activated oncogenes in ALL |
-| 5 | 51 | MYC Targets V1 | 0.029 | Second MYC module — distinct gene subset |
-| 6 | 51 | TNFa Signalling via NF-κB | 2.3×10⁻⁷ | NF-κB is a canonical leukemia survival pathway |
-| 9 | 42 | TNFa Signalling via NF-κB | 1.3×10⁻¹⁵ | Strongest hit in the dataset |
-| 11 | 40 | E2F Targets | 1.8×10⁻⁸ | E2F drives cell cycle entry — classic in cancer |
-| 13 | 33 | Angiogenesis | 0.029 | Vascular remodelling signal |
-| 16 | 31 | Heme Metabolism | 1.1×10⁻⁴ | Expected in a blood cancer dataset |
-| 25 | 15 | mTORC1 Signalling | 0.004 | mTOR is an active therapeutic target in ALL |
+| 4 | 55 | E2F Targets | 7.6×10⁻⁵ | E2F drives cell cycle entry — classic in cancer |
+| 5 | 45 | MYC Targets V1 | 0.009 | MYC is one of the most commonly activated oncogenes in ALL |
+| 7 | 42 | TNFa Signalling via NF-κB | 3.3×10⁻¹⁴ | Strongest hit in the dataset — NF-κB is a canonical leukemia survival pathway |
+| 10 | 38 | KRAS Signalling | 0.027 | RAS pathway — frequently mutated in haematologic cancers |
+| 16 | 32 | TNFa Signalling via NF-κB | 1.9×10⁻⁴ | Second NF-κB module — different gene subset |
+| 19 | 27 | Interferon Gamma Response | 3.4×10⁻⁵ | IFNγ signalling — central to anti-tumour immunity |
+| 21 | 24 | E2F Targets | 4.0×10⁻⁹ | Second E2F module — distinct cell cycle regulators |
+| 25 | 19 | Heme Metabolism | 2.0×10⁻¹⁰ | Expected in a blood cancer dataset |
 
-The two NF-κB modules (6 and 9) are separate — different gene subsets, both hitting the same pathway at different effect sizes. This kind of sub-pathway resolution is lost when you reduce everything to one module.
+Multiple pathways appear in two separate modules (E2F in modules 4 and 21, NF-κB in 7 and 16) — different gene subsets, same pathway, different effect sizes. This kind of sub-pathway resolution is lost when you reduce everything to one module.
 
 ---
 
@@ -165,7 +165,7 @@ The two NF-κB modules (6 and 9) are separate — different gene subsets, both h
 | Many modules (6) | 0.274 | 0.957 | 0.253 |
 | **Overall mean** | **0.302** | **0.904** | **0.206** |
 
-RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — the simulated data has perfectly clean block-diagonal structure, which is exactly what hard thresholding is designed for. Real data has continuous correlation gradients, batch-driven off-diagonal noise, and genes with partial module membership. On simulated data, a hard threshold at r ≈ 0.35 trivially separates signal from noise. On real data (as shown in the enrichment results above), RMTnet recovered 15 biologically coherent modules while WGCNA — which uses the same threshold-based logic — collapsed to a single module and left 97% of genes unassigned.
+RMTnet consistently outperforms no filtering. The comparison to RMThreshold is harder to interpret from simulation alone — the simulated data has perfectly clean block-diagonal structure, which is exactly what hard thresholding is designed for. Real data has continuous correlation gradients, batch-driven off-diagonal noise, and genes with partial module membership. On simulated data, a hard threshold at r ≈ 0.35 trivially separates signal from noise. On real data (as shown in the enrichment results above), RMTnet recovered 13 biologically coherent modules while WGCNA — which uses the same threshold-based logic — collapsed to a single module and left 97% of genes unassigned.
 
 ---
 
@@ -203,6 +203,7 @@ The package is self-testable: `simulate_expression()` is built in so you can ver
 ## Limitations
 
 - **Simulation benchmarks favour hard thresholding due to artificial block structure.** Pathway enrichment against MSigDB on the ALL dataset is shown above, but a systematic comparison across multiple real datasets remains future work.
+- **Remove batch effects before running RMTnet.** Spectral filtering removes random finite-sample noise — it cannot distinguish systematic artifacts (batch, cell cycle, library size) from real biology, because both produce eigenvalues above the MP threshold. Run `limma::removeBatchEffect()` or `ComBat` first, then pass the residuals to `rmt_network()`.
 - **Low Q regime.** When Q = T/N is small (< 0.1), the MP approximation becomes less accurate. The ALL dataset at Q = 0.13 is at the edge of this.
 - **Not yet on Bioconductor.** The package is Bioconductor-ready but has not undergone formal review.
 - **Module detection uses `cutreeDynamic`.** The spectral filtering step is parameter-free; the downstream clustering uses `dynamicTreeCut` which has its own `minModuleSize` parameter (default 30).

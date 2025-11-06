@@ -104,18 +104,32 @@ mp_threshold <- function(expr_matrix, assay_name = "counts") {
 #' Fit sigma^2 by maximising the MP log-likelihood
 #' @noRd
 .fit_mp_sigma2 <- function(eigenvalues, Q) {
-  # Search over log(sigma^2) for numerical stability
-  neg_ll <- function(log_s2) {
+  # When N >> T the correlation matrix is rank-deficient: only T-1
+  # eigenvalues are non-zero, the rest are exactly 0.  Exclude the
+  # zeros so the MP fit uses only the meaningful part of the spectrum.
+  ev_nonzero <- eigenvalues[eigenvalues > 1e-10]
+
+  mp_neg_ll <- function(log_s2, ev) {
     s2 <- exp(log_s2)
-    lp <- s2 * (1 + 1 / sqrt(Q))^2
-    bulk <- eigenvalues[eigenvalues <= lp]
-    if (length(bulk) < 5L) return(1e9)
-    pdf_vals <- .mp_pdf(bulk, s2, Q)
+    pdf_vals <- .mp_pdf(ev, s2, Q)
     pdf_vals <- pmax(pdf_vals, 1e-15)
     -sum(log(pdf_vals))
   }
-  result <- optimise(neg_ll, interval = c(-3, 3))
-  exp(result$minimum)
+
+  # Iterative: start with sigma2=1 (reasonable for standardised data),
+  # compute lambda_plus, exclude signal outliers above it, re-fit on
+  # the remaining bulk, repeat until stable.
+  s2 <- 1
+  for (iter in seq_len(20L)) {
+    lp   <- s2 * (1 + 1 / sqrt(Q))^2
+    bulk <- ev_nonzero[ev_nonzero <= lp]
+    if (length(bulk) < 5L) break
+    fit  <- optimise(mp_neg_ll, interval = c(-3, 3), ev = bulk)
+    s2_new <- exp(fit$minimum)
+    if (abs(s2_new - s2) / max(s2, 1e-8) < 1e-4) break
+    s2 <- s2_new
+  }
+  s2
 }
 
 #' Extract a plain numeric matrix from various input types

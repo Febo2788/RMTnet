@@ -41,10 +41,18 @@ spectral_filter <- function(mp_result) {
   lambda_plus  <- mp_result$lambda_plus
   N            <- mp_result$N
 
-  # Replace noise eigenvalues with their mean (preserves trace = N)
-  noise_mean   <- if (n_signal < N) mean(eigenvalues[(n_signal + 1L):N]) else 0
-  lam_clean    <- eigenvalues
-  if (n_signal < N) lam_clean[(n_signal + 1L):N] <- noise_mean
+  # Replace non-zero noise eigenvalues with their mean.
+  # When N >> T the correlation matrix is rank-deficient: eigenvalues
+  # beyond rank T-1 are exactly 0 and must stay 0 (they represent
+  # dimensions with no data, not noise to be averaged).
+  lam_clean  <- eigenvalues
+  noise_mask <- (eigenvalues > 1e-10) & (eigenvalues <= lambda_plus)
+  if (any(noise_mask)) {
+    noise_mean <- mean(eigenvalues[noise_mask])
+    lam_clean[noise_mask] <- noise_mean
+  } else {
+    noise_mean <- 0
+  }
 
   # Reconstruct:  C_clean = U * diag(lam_clean) * U^T
   C_clean <- eigenvectors %*% diag(lam_clean) %*% t(eigenvectors)
